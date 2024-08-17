@@ -754,7 +754,7 @@ async fn run(event_loop: EventLoop<()>, window: Window, params: HashMap<String, 
 	});
 
 	// We use the egui_wgpu_backend crate as the render backend.
-	let mut egui_rpass = RenderPass::new(&device, surface_format, 1);
+	let mut egui_rpass = RenderPass::new(&device, surface_format, sample_count);
 
 	// Display the application
 
@@ -1599,13 +1599,11 @@ async fn run(event_loop: EventLoop<()>, window: Window, params: HashMap<String, 
 
 				//if old_width != width as u32 {
 				// log!(
-				// 	"set scissor rect: x: {} y: {}, width: {} height: {}, was {}",
+				// 	"set scissor rect: x: {} y: {}, width: {} height: {}",
 				// 	x,
 				// 	y,
 				// 	width,
-				// 	height,
-				// 	old_width
-				// );
+				// 	height,				);
 				// old_width = width as u32;
 				//}
 
