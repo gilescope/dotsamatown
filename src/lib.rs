@@ -74,9 +74,7 @@ mod texture;
 mod ui;
 mod resize;
 
-#[cfg(target_family = "wasm")]
 pub mod webworker;
-#[cfg(target_family = "wasm")]
 pub use webworker::IOWorker;
 
 // #[cfg(feature = "spacemouse")]
@@ -557,69 +555,26 @@ impl Instance {
 // }
 
 async fn async_main() -> std::result::Result<(), ()> {
-	#[cfg(target_family = "wasm")]
 	let url = web_sys::window().unwrap().location().search().expect("no search exists");
-	#[cfg(not(target_family = "wasm"))]
-	let url = "";
-
 	let url = url::Url::parse(&format!("http://dotsama.world/{}", url)).unwrap();
 
 	let params: HashMap<String, String> = url.query_pairs().into_owned().collect();
-
 	log!("url : {:?}", params.get("env"));
 
-	#[cfg(target_arch = "wasm32")]
 	console_error_panic_hook::set_once();
-	// let error = console_log::init_with_level(Level::Warn);
-	//.expect("Failed to enable logging");
-
-	// App assumes the target dir exists for caching data
-	#[cfg(not(target_arch = "wasm32"))]
-	let _ = std::fs::create_dir_all("target");
-
-	let _low_power_mode = false;
-
-	#[cfg(target_feature = "atomics")]
-	log!("Yay atomics!");
-
-	// app.insert_resource(Msaa { samples: 4 });
-
-	//  .insert_resource(WinitSettings::desktop_app()) - this messes up the 3d space mouse?
-
-	// app.add_plugin(SpaceMousePlugin);
-
-	// if low_power_mode {
-	// 	app.insert_resource(WinitSettings::desktop_app());
-	// }
-	// .add_plugin(recorder::RecorderPlugin)
-	// app.add_plugin(PolylinePlugin);
-
-	// #[cfg(feature = "spacemouse")]
-	// app.add_startup_system(move |mut scale: ResMut<bevy_spacemouse::Scale>| {
-	// 	scale.rotate_scale = 0.00010;
-	// 	scale.translate_scale = 0.004;
-	// });
-
-	// // .add_system(pad_system)
-	// app.add_system_to_stage(CoreStage::PostUpdate, update_visibility);
-
-	// html_body::get().request_pointer_lock();
 
 	let event_loop = winit::event_loop::EventLoopBuilder::<()>::with_user_event().build().unwrap();
 
 	let mut winit_window_builder = winit::window::WindowBuilder::new();
 
-	#[cfg(target_family = "wasm")]
-	{
-		let window = web_sys::window().unwrap();
-		let document = window.document().unwrap();
-		let canvas = document.query_selector("canvas").expect("Cannot query for canvas element.");
-		if let Some(canvas) = canvas {
-			let canvas = canvas.dyn_into::<web_sys::HtmlCanvasElement>().ok();
-			winit_window_builder = winit_window_builder.with_canvas(canvas);
-		} else {
-			panic!("Cannot find element: {}.", "canvas");
-		}
+	let window = web_sys::window().unwrap();
+	let document = window.document().unwrap();
+	let canvas = document.query_selector("canvas").expect("Cannot query for canvas element.");
+	if let Some(canvas) = canvas {
+		let canvas = canvas.dyn_into::<web_sys::HtmlCanvasElement>().ok();
+		winit_window_builder = winit_window_builder.with_canvas(canvas);
+	} else {
+		panic!("Cannot find element: {}.", "canvas");
 	}
 
 	use winit::event_loop::ControlFlow;
@@ -627,21 +582,13 @@ async fn async_main() -> std::result::Result<(), ()> {
 
 	log!("about to run event loop");
 	let window = winit_window_builder.build(&event_loop).unwrap();
-	#[cfg(target_family = "wasm")]
 	wasm_bindgen_futures::spawn_local(run(event_loop, window, params));
-	#[cfg(not(target_family = "wasm"))]
-	run(event_loop, window, params).await;
 
 	log!("event loop finished");
 	Ok::<(), ()>(())
 }
 
 async fn run(event_loop: EventLoop<()>, window: Window, params: HashMap<String, String>) {
-	// let movement_settings = MovementSettings {
-	// 	sensitivity: 0.00020, // default: 0.00012
-	// 	speed: 12.0,          // default: 12.0
-	// 	boost: 5.,
-	// };
 	let ground_width = 1000000.0f32;
 	let touch_sensitivity = 2.0f64;
 	let sample_count = 1;
@@ -657,7 +604,6 @@ async fn run(event_loop: EventLoop<()>, window: Window, params: HashMap<String, 
 	let sovereigns = Sovereigns { relays: vec![], default_track_speed: 1. };
 
 	let mut anchor = Anchor::default();
-	// let mut destination = movement::Destination::default();
 	let mut inspector = Inspector::default();
 	let mut occupied_screen_space = ui::OccupiedScreenSpace::default();
 
@@ -775,19 +721,6 @@ async fn run(event_loop: EventLoop<()>, window: Window, params: HashMap<String, 
 		source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
 	});
 
-	// let mut camera = Camera {
-	//     // position the camera one unit up and 2 units back
-	//     // +z is out of the screen
-	//     eye: (0.0, 1.0, 2.0).into(),
-	//     // have it look at the origin
-	//     target: (0.0, 0.0, 0.0).into(),
-	//     // which way is "up"
-	//     up: cgmath::Vector3::unit_y(),
-	//     aspect: size.width as f32 / size.height as f32,
-	//     fovy: 45.0,
-	//     znear: 0.1,
-	//     zfar: 100.0,
-	// };
 	let mut camera =
 		camera::Camera::new((-200.0, 100.0, 0.0), cgmath::Deg(0.0), cgmath::Deg(-20.0));
 	let mut projection =
@@ -891,7 +824,7 @@ async fn run(event_loop: EventLoop<()>, window: Window, params: HashMap<String, 
 		label: Some("camera_bind_group"),
 	});
 
-	let mut depth_texture = texture::Texture::create_depth_texture(
+	let mut depth_texture = texture::DotTexture::create_depth_texture(
 		&device,
 		&surface_config,
 		"depth_texture",
@@ -985,11 +918,9 @@ async fn run(event_loop: EventLoop<()>, window: Window, params: HashMap<String, 
 			compilation_options: std::default::Default::default()
 		},
 		fragment: Some(wgpu::FragmentState {
-			// 3.
 			module: &shader,
 			entry_point: "fs_main",
 			targets: &[Some(wgpu::ColorTargetState {
-				// 4.
 				format: TextureFormat::Bgra8Unorm, // Rgba8UnormSrgb
 				blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
 				write_mask: wgpu::ColorWrites::ALL,
@@ -1011,7 +942,7 @@ async fn run(event_loop: EventLoop<()>, window: Window, params: HashMap<String, 
 		},
 
 		depth_stencil: Some(wgpu::DepthStencilState {
-			format: texture::Texture::DEPTH_FORMAT,
+			format: texture::DotTexture::DEPTH_FORMAT,
 			depth_write_enabled: true,
 			depth_compare: wgpu::CompareFunction::Less,
 			stencil: default(),
@@ -1025,8 +956,6 @@ async fn run(event_loop: EventLoop<()>, window: Window, params: HashMap<String, 
 		},
 		multiview: None,
 	});
-
-	// let mut last_render_time = Utc::now();
 
 	let mut frames = 0u64;
 	let mut fps = 0;
@@ -1043,14 +972,9 @@ async fn run(event_loop: EventLoop<()>, window: Window, params: HashMap<String, 
 	source_data(
 		initial_event,
 		sovereigns,
-		// details: Query<Entity, With<ClearMeAlwaysVisible>>,
-		// clean_me: Query<Entity, With<ClearMe>>,
-		&mut urlbar, /* handles: Res<ResourceHandles>,
-		              * #[cfg(not(target_arch="wasm32"))]
-		              * writer: EventWriter<DataSourceStreamEvent>, */
+		&mut urlbar,
 	);
 
-	// let mut ctx = egui::Context::default();
 	let mut mouse_pressed: bool = false;
 
 	use crate::camera::OPENGL_TO_WGPU_MATRIX;
@@ -1113,22 +1037,17 @@ async fn run(event_loop: EventLoop<()>, window: Window, params: HashMap<String, 
 			contents: bytemuck::cast_slice(&selected_instance_data),
 			usage: wgpu::BufferUsages::VERTEX,
 		});
-	// let mut selected_instance_data_count = selected_instance_data.len();
 
 	// let mut loaded_textures = false;
 	// let diffuse_texture_view: wgpu::TextureView;
 	// let diffuse_sampler : wgpu::Sampler;
 
-	// let mut last_movement_time = Utc::now();
-	//EventLoopExtWebSys::spawn();
 	//TODO: in v30 of winit we can avoid the exception
 	// use winit::platform::web::EventLoopExtWebSys;
 	let mut last_frame_time : Instant = Instant::now();
 	event_loop.run(  |event, control_flow| {
 		control_flow.set_control_flow(ControlFlow::wait_duration(Duration::from_millis(20)));
 		let now_frame_time = Instant::now();
-
-		// event_loop.set_control_flow(ControlFlow::wait_duration(Duration::from_millis(1000)));
 
 		let selected_instance_buffer;
 		let event_instance_buffer;
@@ -1146,7 +1065,6 @@ async fn run(event_loop: EventLoop<()>, window: Window, params: HashMap<String, 
 		// Pass the winit events to the platform integration.
 		platform.handle_event(&event);
 
-
 		let selected_details = SELECTED.lock().unwrap().clone();
 		// TODO: avoid doing this every frame...
 		selected_instance_data.clear();
@@ -1158,8 +1076,6 @@ async fn run(event_loop: EventLoop<()>, window: Window, params: HashMap<String, 
 			}
 		}
 
-		// viewport_resize_system(&resize_receiver);
-		#[cfg(target_family = "wasm")]
 		if let Some(new_size) = resize::viewport_resize_system(&resize_receiver) {
 			log!("set new size width: {} height: {}", new_size.width, new_size.height);
 			hidpi_factor = window.scale_factor();
@@ -1174,11 +1090,9 @@ async fn run(event_loop: EventLoop<()>, window: Window, params: HashMap<String, 
 
 			// TODO: can we set canvas size?
 
-			// size = new_size;
 			resize(&size, &device, &mut surface_config, &mut projection, &mut surface, &mut depth_texture, hidpi_factor, &mut camera_uniform, &mut camera, sample_count, &mut platform, &window_id);
 		}
 
-		//if frames % 10 == 1
 		let mut redraw = true;
 		
 		match event {
@@ -1367,20 +1281,11 @@ async fn run(event_loop: EventLoop<()>, window: Window, params: HashMap<String, 
 		camera_uniform.update_view_proj(&camera, &projection);
 		queue.write_buffer(&camera_buffer, 0, bytemuck::cast_slice(&[camera_uniform]));
 
-		redraw = true;
 		if redraw {
 			frames += 1;
-			
 
-			// let mut data_update: Option<DataUpdate> = None;
 			if let Ok(render_update) = &mut UPDATE_QUEUE.lock() {
 				if render_update.any() {
-					// if render_update.cube_instances.len() > 0 {
-					// 	log!("Got update {:?}", render_update.cube_instances[0].0.position[0]);
-					// }
-					// log!("Got block {:?}", render_update.block_instances.len());
-					// log!("Got chain {:?}", render_update.count());
-
 					for (instance, height) in &render_update.extrinsic_instances {
 						extrinsic_instance_data.push(*instance);
 						extrinsic_target_heights.push(*height);
@@ -1407,7 +1312,6 @@ async fn run(event_loop: EventLoop<()>, window: Window, params: HashMap<String, 
 					}
 
 					if let Some(basetime) = render_update.basetime {
-						// log!("Updated basetime");
 						*BASETIME.lock().unwrap() = basetime.into();
 					}
 
@@ -1422,7 +1326,6 @@ async fn run(event_loop: EventLoop<()>, window: Window, params: HashMap<String, 
 			//todo rain in gpu
 			rain(last_frame_time, now_frame_time, &mut extrinsic_instance_data, &mut extrinsic_target_heights);
 			rain(last_frame_time, now_frame_time, &mut event_instance_data, &mut event_target_heights);
-			
 
 			// TODO: when refreshing a buffer can we append to it???
 			if ground_instance_data_count != ground_instance_data.len() {
@@ -1563,7 +1466,14 @@ async fn run(event_loop: EventLoop<()>, window: Window, params: HashMap<String, 
 						Some(wgpu::RenderPassColorAttachment {
 							view: &output_view,
 							resolve_target: None,
-							ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store },
+							ops: wgpu::Operations { load:  wgpu::LoadOp::Clear(
+								wgpu::Color {
+									r: 1.0,
+									g: 1.0,
+									b: 1.0,
+									a: 1.0,
+								}
+							), store: wgpu::StoreOp::Store },
 						}),
 					],
 					depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
@@ -2786,7 +2696,7 @@ fn resize(
 	surface_config: &mut wgpu::SurfaceConfiguration,
 	projection: &mut camera::Projection,
 	surface: &mut wgpu::Surface,
-	depth_texture: &mut texture::Texture,
+	depth_texture: &mut texture::DotTexture,
 	hidpi_factor_f64: f64,
 	camera_uniform: &mut camera::CameraUniform,
 	camera: &mut camera::Camera,
@@ -2814,7 +2724,7 @@ fn resize(
 
 	camera_uniform.update_view_proj(camera, projection);
 
-	*depth_texture = texture::Texture::create_depth_texture(
+	*depth_texture = texture::DotTexture::create_depth_texture(
 		device,
 		surface_config,
 		"depth_texture",
@@ -2823,7 +2733,6 @@ fn resize(
 
 	// Resize egui:
 	use winit::event::Event::WindowEvent;
-	// use winit::event::WindowEvent;
 	//TODO: egui thinks screen is 2x size that it is.
 	platform.handle_event::<winit::event::WindowEvent>(&WindowEvent {
 		window_id: *window_id,
@@ -2844,8 +2753,6 @@ fn resize(
 	// });
 }
 
-// struct DataSourceStreamEvent(ChainInfo, datasource::DataUpdate);
-
 fn chain_name_to_url(chain_names: &Vec<&str>) -> Vec<String> {
 	let mut results = Vec::new();
 	for chain_name in chain_names {
@@ -2863,56 +2770,13 @@ fn chain_name_to_url(chain_names: &Vec<&str>) -> Vec<String> {
 	results
 }
 
-// // fn start_background_audio(asset_server: Res<AssetServer>, audio: Res<Audio>) {
-// //     audio.play_looped(asset_server.load("sounds/backtrack.ogg"));
-// // }
-// fn source_data<'a, 'b, 'c, 'd, 'e, 'f,'g,'h,'i,'j>(
-// 	mut datasource_events: EventReader<'a, 'b, DataSourceChangedEvent>,
-// 	mut commands: Commands<'c,'d>,
-// 	mut sovereigns: ResMut<'e, Sovereigns>,
-// 	details: Query<'f, 'g, Entity, With<ClearMeAlwaysVisible>>,
-// 	clean_me: Query<'h, 'i, Entity, With<ClearMe>>,
-// 	// mut dest: ResMut<Destination>,
-// 	mut spec: ResMut<'j, UrlBar>,
-// ) {
-// 	// async_std::task::block_on(source_data_async(datasource_events, commands, sovereigns,
-// 	// 	 details, clean_me, spec));
-// }
-
-// #[cfg(target_arch="wasm32")]
-// #[derive(Component)]
-// struct SourceDataTask(bevy_tasks::FakeTask);
-
-#[cfg(not(target_arch = "wasm32"))]
-async fn send_it_to_desktop(update: (RenderUpdate, RenderDetails)) {
-	// log!("Got some results....! yay they're already in the right place. {}", blocks.len());
-	UPDATE_QUEUE.lock().unwrap().extend(update.0);
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-// #[derive(Component)]
-struct SourceDataTask(Result<(), std::boxed::Box<dyn std::error::Error + Send + Sync>>);
-
-// fn send_it_to_main(_blocks: Vec<datasource::DataUpdate>) //+ Send + Sync + 'static
-// {
-// 	log!("got a block!!!");
-// }
-
 fn source_data(
 	event: DataSourceChangedEvent,
-	// mut commands: Commands,
 	mut sovereigns: Sovereigns,
-	// details: Query<Entity, With<ClearMeAlwaysVisible>>,
-	// clean_me: Query<Entity, With<ClearMe>>,
 	spec: &mut UrlBar,
-	// handles: Res<ResourceHandles>,
-	// #[cfg(not(target_arch="wasm32"))]
-	// writer: EventWriter<DataSourceStreamEvent>,
 ) {
 	// for event in datasource_events.iter() {
 	log!("data source changes to {} {:?}", event.source, event.timestamp);
-
-	// clear_world(&details, &mut commands, &clean_me);
 
 	if event.source.is_empty() {
 		log!("Datasources cleared epoc {}", DATASOURCE_EPOC.load(Ordering::Relaxed));
@@ -3027,10 +2891,6 @@ fn source_data(
 	}
 
 	log!("sov count {}", sovereigns.relays.len());
-	#[cfg(not(target_arch = "wasm32"))]
-	do_datasources(sovereigns, as_of);
-
-	#[cfg(target_family = "wasm")]
 	wasm_bindgen_futures::spawn_local(async move {
 		log("send to bridge");
 
@@ -3067,7 +2927,6 @@ fn source_data(
 		}
 	});
 
-	#[cfg(target_family = "wasm")]
 	log!("sent to bridge");
 }
 
@@ -4207,17 +4066,17 @@ macro_rules! max {
         }
     }}
 }
-macro_rules! min {
-    ($x: expr) => ($x);
-    ($x: expr, $($z: expr),+) => {{
-        let y = min!($($z),*);
-        if $x < y {
-            $x
-        } else {
-            y
-        }
-    }}
-}
+// macro_rules! min {
+//     ($x: expr) => ($x);
+//     ($x: expr, $($z: expr),+) => {{
+//         let y = min!($($z),*);
+//         if $x < y {
+//             $x
+//         } else {
+//             y
+//         }
+//     }}
+// }
 
 fn rain(
 	last_frame_time: Instant,

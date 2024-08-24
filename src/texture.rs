@@ -1,10 +1,10 @@
-pub struct Texture {
+pub struct DotTexture {
 	pub texture: wgpu::Texture,
 	pub view: wgpu::TextureView,
 	pub sampler: wgpu::Sampler,
 }
 
-impl Texture {
+impl DotTexture {
 	pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float; // 1.
 
 	pub fn create_depth_texture(
