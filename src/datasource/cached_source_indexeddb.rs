@@ -4,7 +4,6 @@ use futures::TryFutureExt;
 use primitive_types::H256;
 
 use rexie::ObjectStore;
-#[cfg(target_arch = "wasm32")]
 use rexie::{Rexie, TransactionMode};
 use wasm_bindgen::JsValue;
 

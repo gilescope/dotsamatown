@@ -36,3 +36,4 @@ dist:
     FROM +prep
     RUN trunk build --release
     RUN ./fixup.sh
+    SAVE ARTIFACT /dist dist-earthly

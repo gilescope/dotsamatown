@@ -17,21 +17,9 @@ use std::{
 use crate::LINKS;
 
 mod time_predictor;
-//mod cached_source_inc_web;
 
-// #[cfg(target_arch = "wasm32")]
-// mod cached_source_indexeddb;
-
-#[cfg(not(target_arch = "wasm32"))]
-mod cached_source;
 mod raw_source;
 
-#[cfg(not(target_arch = "wasm32"))]
-pub use cached_source::CachedDataSource;
-//pub use cached_source_inc_web::CachedDataSource;
-
-// #[cfg(target_arch = "wasm32")]
-// pub use cached_source_indexeddb::CachedDataSource;
 pub use raw_source::{RawDataSource, Source};
 
 macro_rules! log {
@@ -155,9 +143,6 @@ where
 		// log!("listening to as of {:?}", as_of);
 
 		let url = &chain_info.chain_ws;
-		#[cfg(not(target_arch = "wasm32"))]
-		let mut source = CachedDataSource::new(RawDataSource::new(url.clone()));
-		#[cfg(target_arch = "wasm32")]
 		let mut source = RawDataSource::new(url.clone());
 
 		let para_id = chain_info.chain_url.para_id;

@@ -37,7 +37,6 @@ use winit::{
 	window::{Window, WindowId},
 };
 
-#[cfg(target_arch = "wasm32")]
 use {
 	core::future::Future, gloo_worker::Spawnable, gloo_worker::WorkerBridge, wasm_bindgen::JsCast,
 	webworker::WorkerResponse, winit::platform::web::WindowBuilderExtWebSys,
@@ -215,7 +214,6 @@ pub struct Anchor {
 	pub follow_chain: bool,
 }
 
-#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen::prelude::wasm_bindgen]
 extern "C" {
 	// Use `js_namespace` here to bind `console.log(..)` instead of just
@@ -234,16 +232,8 @@ extern "C" {
 	fn log_many(a: &str, b: &str);
 }
 
-#[cfg(not(target_arch = "wasm32"))]
-fn log(s: &str) {
-	println!("{}", s);
-}
-
 pub fn main() {
-	#[cfg(target_arch = "wasm32")]
 	async_std::task::block_on(async_main());
-	#[cfg(not(target_arch = "wasm32"))]
-	async_std::task::block_on(async_main()).unwrap();
 }
 
 #[repr(C)]
@@ -663,7 +653,9 @@ async fn run(event_loop: EventLoop<()>, window: Window, params: HashMap<String, 
 	resize::setup_viewport_resize_system(Mutex::new(resize_sender));
 
 	// let preferred = adapter.adapter_get_swap_chain_preferred_format(&surface);
-	let surface_format = TextureFormat::Bgra8Unorm;
+	// Safari says:
+	//    Requested format Bgra8Unorm is not in list of supported formats: [Rgba8Unorm, Rgba8UnormSrgb, Rgba16Float]
+	let surface_format = TextureFormat::Rgba8Unorm;
 
 	// let surface_caps = surface.get_capabilities(&adapter);
 	// // Shader code in this tutorial assumes an sRGB surface texture. Using a different
@@ -921,7 +913,7 @@ async fn run(event_loop: EventLoop<()>, window: Window, params: HashMap<String, 
 			module: &shader,
 			entry_point: "fs_main",
 			targets: &[Some(wgpu::ColorTargetState {
-				format: TextureFormat::Bgra8Unorm, // Rgba8UnormSrgb
+				format: surface_format, // Rgba8UnormSrgb
 				blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
 				write_mask: wgpu::ColorWrites::ALL,
 			})],
@@ -2806,10 +2798,7 @@ fn source_data(
 	// }
 
 	log!("event source {}", event.source);
-	#[cfg(target_arch = "wasm32")]
 	const HIST_SPEED: f32 = 0.05;
-	#[cfg(not(target_arch = "wasm32"))]
-	const HIST_SPEED: f32 = 0.7;
 	log!("is live {}", is_live);
 	sovereigns.default_track_speed = if is_live { 0.1 } else { HIST_SPEED };
 
@@ -2930,52 +2919,6 @@ fn source_data(
 	log!("sent to bridge");
 }
 
-#[cfg(not(target_arch = "wasm32"))]
-fn do_datasources(sovereigns: Sovereigns, as_of: Option<DotUrl>) {
-	for relay in sovereigns.relays.into_iter() {
-		let mut relay2: Vec<(ChainInfo, _)> = vec![];
-		let mut send_map: HashMap<
-			u32,
-			async_std::channel::Sender<(datasource::RelayBlockNumber, i64, H256)>,
-		> = default();
-		for chain in relay.into_iter() {
-			let (tx, rc) = async_std::channel::unbounded();
-			if let Some(para_id) = chain.chain_url.para_id {
-				send_map.insert(para_id, tx);
-			}
-			relay2.push((chain, rc));
-		}
-
-		let mut send_map = Some(send_map);
-		for (chain, rc) in relay2 {
-			// log!("listening to {}", chain.info.chain_ws);
-
-			let maybe_sender = if chain.chain_url.is_relay() { send_map.take() } else { None };
-
-			let as_of = as_of.clone();
-			// log!("as of for chain {:?} index {}", &as_of, chain.chain_index);
-			let chain_info = chain.clone();
-
-			let block_watcher = datasource::BlockWatcher {
-				tx: Some(send_it_to_desktop),
-				chain_info,
-				as_of,
-				receive_channel: Some(rc),
-				sender: maybe_sender,
-				forwards: true
-			};
-
-			std::thread::spawn(
-				//thread_pool.spawn_local
-				move || {
-					async_std::task::block_on(block_watcher.watch_blocks());
-				},
-			);
-		}
-	}
-}
-
-#[cfg(target_arch = "wasm32")]
 async fn do_datasources<F, R>(
 	sovereigns: Sovereigns,
 	as_of: Option<DotUrl>,
@@ -3017,11 +2960,7 @@ async fn do_datasources<F, R>(
 				forwards: true,
 			};
 
-			#[cfg(target_arch = "wasm32")]
 			wasm_bindgen_futures::spawn_local(block_watcher.watch_blocks());
-
-			#[cfg(not(target_arch = "wasm32"))]
-			block_watcher.watch_blocks().await;
 		}
 	}
 }
@@ -4291,7 +4230,6 @@ pub struct Inspector {
 // #[derive(Component)]
 pub struct Viewport;
 
-#[cfg(target_arch = "wasm32")]
 pub mod html_body {
 	use web_sys::HtmlElement;
 	// use web_sys::Document;
